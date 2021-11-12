@@ -10,16 +10,56 @@ import torch.nn.functional as F
 
 
 def structure_loss(pred, mask):
+    # print(pred.size())
+    # print(mask.size())
+    # print(pred.size())
+    # print(mask.size())
+    # print(torch.min(pred))
+    # print(torch.min(mask))
+    # print(torch.max(pred))
+    # print(torch.max(mask))
     weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
     wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
     wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
 
     pred = torch.sigmoid(pred)
+    # print(pred.size())
+    # print(torch.min(pred))
     inter = ((pred * mask)*weit).sum(dim=(2, 3))
     union = ((pred + mask)*weit).sum(dim=(2, 3))
     wiou = 1 - (inter + 1)/(union - inter+1)
     return (wbce + wiou).mean()
 
+def iou(pred, mask):
+    # print(pred.size())
+    # print(mask.size())
+    # print(torch.min(pred))
+    # print(torch.min(mask))
+    # print(torch.max(pred))
+    # print(torch.max(mask))
+    weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
+
+
+    pred = torch.sigmoid(pred)
+    inter = ((pred * mask)*weit).sum(dim=(2, 3))
+    union = ((pred + mask)*weit).sum(dim=(2, 3))
+
+    return 100*(inter/union)
+
+
+def dice_loss(pred, mask, smooth=1):
+
+        #comment out if your model contains a sigmoid or equivalent activation layer
+        pred = torch.sigmoid(pred)
+
+        #flatten label and prediction tensors
+        pred = pred.view(-1)
+        mask = mask.view(-1)
+
+        intersection = (pred * mask).sum()
+        dice = (2.*intersection + smooth)/(pred.sum() + mask.sum() + smooth)
+
+        return 100*(1 - dice)
 
 def train(train_loader, model, optimizer, epoch):
     model.train()
@@ -39,6 +79,7 @@ def train(train_loader, model, optimizer, epoch):
                 images = F.upsample(images, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
                 gts = F.upsample(gts, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
             # ---- forward ----
+            outputs = model(images)
             lateral_map_5, lateral_map_4, lateral_map_3, lateral_map_2 = model(images)
             # ---- loss function ----
             loss5 = structure_loss(lateral_map_5, gts)
@@ -56,12 +97,42 @@ def train(train_loader, model, optimizer, epoch):
                 loss_record3.update(loss3.data, opt.batchsize)
                 loss_record4.update(loss4.data, opt.batchsize)
                 loss_record5.update(loss5.data, opt.batchsize)
+            # ---- accuracy ----
+            # dice score/coefficient
+            # Iou
+            # change the label: pink->white; red->black
+        # total_train = 0
+        # correct_train = 0
+        # _, predicted = torch.max(loss.data, 0)
+        # total_train += gts.nelement()
+        # correct_train += predicted.eq(gts.data).sum().item()
+        # train_accuracy = 100 * correct_train / total_train
+        # avg_accuracy = train_accuracy / len(train_loader)
+        #     mask = gts[0, 0, :, :]
+        #     print(mask.size())
+        #     print(lateral_map_2.size())
+        #     print(gts.size())
+        #     mask = F.upsample(mask, size=masks.shape, mode='bilinear', align_corners=False)
+        #     mask = mask.sigmoid().data.cpu().numpy().squeeze()
+        #     mask = (mask - mask.min()) / (mask.max() - mask.min() + 1e-8)
+        #
+            # res = lateral_map_2[0, 0, :, :]
+            # res = F.upsample(res, size=res.shape, mode='bilinear', align_corners=False)
+            # res = res.sigmoid().data.cpu().numpy().squeeze()
+            # res = (res - res.min()) / (res.max() - res.min() + 1e-8)
+
+
+
+
+        dice = dice_loss(lateral_map_2, gts)
+
+        iou2 = iou(lateral_map_2, gts)
         # ---- train visualization ----
         if i % 20 == 0 or i == total_step:
             print('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], '
                   '[lateral-2: {:.4f}, lateral-3: {:0.4f}, lateral-4: {:0.4f}, lateral-5: {:0.4f}]'.
                   format(datetime.now(), epoch, opt.epoch, i, total_step,
-                         loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show()))
+                         loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show()),"Dice loss: %d %%" % ((dice.mean())),"IOU: %d %%" % ((2.mean(iou))))
     save_path = 'snapshots/{}/'.format(opt.train_save)
     os.makedirs(save_path, exist_ok=True)
     if (epoch+1) % 10 == 0:

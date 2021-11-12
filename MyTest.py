@@ -33,6 +33,6 @@ for _data_name in ['CVC-300', 'CVC-ClinicDB', 'Kvasir', 'CVC-ColonDB', 'ETIS-Lar
         res5, res4, res3, res2 = model(image)
         res = res2
         res = F.upsample(res, size=gt.shape, mode='bilinear', align_corners=False)
-        res = res.sigmoid().data.cpu().numpy().squeeze()
+        res = res.sigmoid().data.cuda().numpy().squeeze()
         res = (res - res.min()) / (res.max() - res.min() + 1e-8)
         misc.imsave(save_path+name, res)
