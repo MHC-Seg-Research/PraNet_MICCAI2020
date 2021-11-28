@@ -71,8 +71,8 @@ def train(train_loader, model, optimizer, epoch):
             optimizer.zero_grad()
             # ---- data prepare ----
             images, gts = pack
-            images = Variable(images).cuda()
-            gts = Variable(gts).cuda()
+            images = Variable(images).cpu()
+            gts = Variable(gts).cpu()
             # ---- rescale ----
             trainsize = int(round(opt.trainsize*rate/32)*32)
             if rate != 1:
@@ -132,13 +132,12 @@ def train(train_loader, model, optimizer, epoch):
             print('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], '
                   '[lateral-2: {:.4f}, lateral-3: {:0.4f}, lateral-4: {:0.4f}, lateral-5: {:0.4f}]'.
                   format(datetime.now(), epoch, opt.epoch, i, total_step,
-                         loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show()),"Dice loss: %d %%" % ((dice.mean())),"IOU: %d %%" % ((2.mean(iou))))
+                         loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show()),"Dice loss: ", ((dice.mean())),"IOU:", ((iou2.mean())))
     save_path = 'snapshots/{}/'.format(opt.train_save)
     os.makedirs(save_path, exist_ok=True)
     if (epoch+1) % 10 == 0:
         torch.save(model.state_dict(), save_path + 'PraNet-%d.pth' % epoch)
         print('[Saving Snapshot:]', save_path + 'PraNet-%d.pth'% epoch)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -164,7 +163,7 @@ if __name__ == '__main__':
 
     # ---- build models ----
     # torch.cuda.set_device(0)  # set your gpu device
-    model = PraNet().cuda()
+    model = PraNet().cpu()
 
     # ---- flops and params ----
     # from utils.utils import CalParams
@@ -177,7 +176,7 @@ if __name__ == '__main__':
     image_root = '{}/images/'.format(opt.train_path)
     gt_root = '{}/masks/'.format(opt.train_path)
 
-    train_loader = get_loader(image_root, gt_root, batchsize=opt.batchsize, trainsize=opt.trainsize)
+    train_loader = get_loader(image_root, gt_root, batchsize=opt.batchsize, num_workers=0, trainsize=opt.trainsize)
     total_step = len(train_loader)
 
     print("#"*20, "Start Training", "#"*20)
